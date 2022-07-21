@@ -3,6 +3,18 @@ import pandas as pd
 from pandas.api.types import is_numeric_dtype
 # from pandas_profiling import ProfileReport
 
+def get_data_from_excel(sheet):
+        df = pd.read_excel(
+            io="pooled_DESeq.xlsx",
+            engine="openpyxl",
+            sheet_name=sheet
+        )
+        return df
+
+def convert_df(df):
+        return df.to_csv().encode('utf-8')
+
+
 def isCategorical(col):
     unis = np.unique(col)
     if len(unis)<0.2*len(col):
