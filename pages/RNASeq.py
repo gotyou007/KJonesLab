@@ -110,7 +110,7 @@ def app():
 
     #color map for kmean
     def color_mapping(obj, color_set):
-        color = sns.color_palette("Paired", obj.unique().size)
+        color = sns.color_palette(color_set, obj.unique().size)
         lut = dict(zip(obj.unique(), color))
         colors = obj.map(lut)
         return lut, colors

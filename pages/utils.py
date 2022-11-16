@@ -12,7 +12,9 @@ def get_data_from_excel(sheet):
         return df
 
 def convert_df(df):
-        return df.to_csv().encode('utf-8')
+        return df.to_csv(index=False).encode('utf-8')
+def convert_df_noindex(df):
+        return df.to_csv(index=False, header=False, sep='\t').encode('utf-8')
 
 
 def isCategorical(col):
