@@ -1,0 +1,239 @@
+---
+title: "DESeq analysis for 16216R"
+date: '`r gsub("  ", " ", format(Sys.time(), "%B %e, %Y"))`'
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, comment="# ", collapse=TRUE)
+```
+
+This guide follows the [Bioconductor RNA-Seq workflow] to find differentially expressed
+genes using [DESeq2] version `r gsub("‘’", "", packageVersion("DESeq2"))`
+and the [hciR] package on Github to simplify the [R] code.
+
+Load the required libraries ([hciRdata] is also on Github).
+
+```{r loadlibrary}
+library(hciR)
+library(hciRdata)
+library(tidyverse)
+library(rmarkdown)
+```
+
+### Load samples and counts
+
+Load the id and name from the sample table on GnomEx and add a treatment column
+from the email on Aug 21.  Re-order factors for the pariwise comparisons
+(control groups should be the reference level and listed last).
+
+
+```{r load_samples, message=FALSE}
+samples <- read_tsv("samples.txt")
+samples$trt <- factor(samples$trt, levels = c("translocation", "Rosa26", "muscle"))
+samples
+```
+
+Load the combined `featureCounts` output.
+
+```{r load_counts, message=FALSE, echo=-1}
+options(width=110)
+counts <- read_tsv("counts.txt")
+counts[, 1:8]
+```
+
+
+Check the prefilter cutoffs (we typically use 5 or 10 depending on the slope of the line).
+
+```{r check_filter, fig.height = 4.5, echo=-1}
+par(mar=c(5,4,1,1))
+plot_filter(counts)
+```
+
+
+Remove 18923 features with zero counts and 12109 features with 5 or fewer reads
+in every sample to create a final count matrix with 24504 rows.
+
+
+```{r filter_counts}
+counts <- filter_counts(counts, n = 5)
+```
+
+
+Check genes with the highest number of assigned reads (`mouse96` is part of [hciRdata]).
+
+```{r topgenes, echo=-1}
+options(width=110)
+n <- rowMeans(as_matrix(counts))
+inner_join(dplyr::select(mouse96, 1:3,8),
+ tibble(id= names(n), mean_count = n)) %>%
+ mutate(description=substr(description,1,35)) %>%
+ arrange(desc(mean_count))
+```
+
+
+Optionally, remove the ribosomal RNAs (or even all non-coding RNAs) and count the total
+number of reads assigned (in millions).
+
+```{r norrna, echo=-1}
+options(width=110)
+counts <- semi_join(counts,
+      filter(mouse96, !biotype %in% c("rRNA", "Mt_rRNA")), by=c(geneid="id"))
+round(colSums(as_matrix(counts))/1e6, 2)
+```
+
+
+Run `DESeq` using trt in the design formula  and get the regularized log
+(rlog)  counts for sample visualizations.  These values are similar to the log2
+normalized counts except the variance in low count genes is reduced.
+
+
+```{r run_DESeq, eval=FALSE}
+dds <- deseq_from_tibble(counts, samples, design = ~ trt )
+# estimating size factors
+# estimating dispersions
+# gene-wise dispersion estimates
+# mean-dispersion relationship
+# final dispersion estimates
+# fitting model and testing
+
+rld <- DESeq2::rlog(dds)
+```
+
+
+Plot the first two principal components in an interactive highchart using the
+rlog values from the top 500 variable genes.
+
+
+```{r pcaplot}
+plot_pca(rld, "trt", tooltip = c("id", "name"), width=700)
+```
+
+
+Add labels to a static PCA plot using `ggplot2` and `ggrepel`.  You can label id or
+name or any other column in `p$data`.
+
+```{r pcagg, fig.height=5, fig.width=7}
+p <- plot_pca(rld, "trt", ggplot=TRUE)
+library(ggrepel)
+p + geom_text_repel(aes(label=name), cex=3, box.padding=.1, show.legend=FALSE)
+```
+
+
+I often check genes on the X and Y chromosomes for any human samples (and sometimes add sex
+to the design formula to control for any sex-related effects on gene expression).
+
+```{r sex}
+xy  <- counts$geneid %in% mouse96$id[mouse96$chromosome %in% c("X", "Y")]
+plot_pca(rld[xy,], "trt", tooltip=c("id", "name"), width=700, ntop=100)
+```
+
+
+
+Cluster *all* the rlog values using the R function `dist` to calculate the Euclidean
+distance between samples (I typically set the diagonal to NA since it skews the color range,
+see `help(plot_dist)`)
+
+```{r plot_dist, fig.width=7.75, fig.height=6}
+plot_dist(rld, "trt", na="white", annotation_names_col=TRUE, col_name="name")
+```
+
+
+Get the DESeq results from all pairwise comparisons using a 5% false discovery rate (FDR).
+
+```{r results_all, eval=FALSE}
+res <- results_all(dds, mouse96, alpha = 0.05)
+# Using adjusted p-value < 0.05
+# Adding shrunken fold changes to log2FoldChange
+# 1. translocation vs. Rosa26: 881 up and 998 down regulated
+# 2. translocation vs. muscle: 2758 up and 2319 down regulated
+# 3. Rosa26 vs. muscle:        2981 up and 2854 down regulated
+```
+
+The results are saved as a list of three tables, so use a list index to get a
+specific contrast.
+
+```{r res_example}
+names(res)
+arrange(res[[1]], padj) %>% dplyr::select(1,2,7,8,12)
+```
+
+### 1. translocation vs. Rosa26
+
+Plot fold changes and p-values in a volcano plot.
+
+```{r plot_volcano, fig.width=7, fig.height=5.5}
+plot_volcano(res[[1]], ggplot=TRUE, pvalue=c(7.5, 5))
+```
+
+
+Cluster the top 50 significant genes sorted by adjusted p-value and scale by
+rows, so values represent the number of standard deviations from the mean rlog value.
+
+```{r gene_heatmap1a, fig.width=6, fig.height=6}
+x <- top_counts(res[[1]], rld, col_name="name", top=50)
+plot_genes(x, "trt", scale="row", fontsize_row=7, annotation_names_col = FALSE)
+```
+
+
+Cluster all 1879 significant genes.  Note that sample X2 (18T1_RNA) clusters with the other
+translocations, even though it only has 3 million assigned reads in the MultQC report (and
+had lots of unmapped reads that were likely ribosomal RNA).
+
+```{r gene_heatmap1b, fig.width=5.25, fig.height=6}
+x <- top_counts(res[[1]], rld, top=2000, col_name="name")
+nrow(x)
+plot_genes(x, "trt", scale="row", show_rownames=FALSE, annotation_names_col = FALSE)
+```
+
+
+Optionally, drop columns like muscle that are not included in the contrast (not run).
+
+```{r gene_heatmap1c, eval=FALSE}
+x <- filter_top_counts(x, trt != "muscle")
+plot_genes(x, "trt", scale="row", fontsize_row=7, annotation_names_col = FALSE)
+```
+
+### 2. translocation vs. muscle
+
+Let me know if you are interested in the contrasts vs muscle and I can add these plots.
+
+### Compare sets
+
+
+
+Combine the three result tables and summarize significant genes using an [UpSet]
+plot (an alternative to Venn diagrams).
+
+
+```{r signif_total}
+sig <- bind_rows( res,  .id = "contrast") %>%
+       filter(padj <= 0.05)
+library(UpSetR)
+y <- split(sig$id, sig$contrast)
+upset(fromList(y), order.by = "freq", main.bar.color = "blue", sets.bar.color="blue",
+      matrix.color="red", point.size=3)
+```
+
+
+### Save results
+
+Save the DESeq results to a single Excel file in `DESeq.xlsx` and R objects to a
+binary data file to load into a new session.
+
+```{r write_results_to_Excel, eval=FALSE}
+write_deseq(res, dds, rld, mouse96)
+save(res, dds, rld, file="dds.rda")
+```
+
+
+
+<br>
+
+[UpSet]: http://caleydo.org/tools/upset/
+[RStudio]: https://www.rstudio.com/
+[Bioconductor RNA-Seq workflow]: http://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html
+[DESeq2]: http://www.bioconductor.org/packages/release/bioc/html/DESeq2.html
+[hciR]: https://github.com/HuntsmanCancerInstitute/hciR
+[hciRdata]: https://github.com/HuntsmanCancerInstitute/hciRdata
+[R]: https://www.r-project.org
