@@ -1,7 +1,8 @@
 #e li.li@hci.utah.edu -b
 #c kingspeak
-#a A6384
+#a A6384 # store with the given name on GNomEx
 
+# ref files
 ORG=/tomato/dev/data/Human/GRCh38
 CHROM=$ORG/chrom.sizes
 DB=$ORG/release102
@@ -11,7 +12,7 @@ REFFLAT=$DB/Homo_sapiens.GRCh38.102.refflat
 RIBOINT=$DB/Homo_sapiens.GRCh38.102.rRNA.interval
 RSEM_INDEX=$DB/rsem/RSEM
 
-# Paths
+# App Paths
 APP=/tomato/dev/app
 FASTQC=$APP/FastQC/0.11.5/fastqc
 STAR=$APP/STAR/2.7.6a/STAR
@@ -24,7 +25,7 @@ CUTADAPT=$APP/modulesoftware/cutadapt
 CLUMPIFY=$APP/BBmap/v38.34/clumpify.sh
 FASTQSCREEN=$APP/fastq_screen/v0.14.0/fastq_screen
 
-# Concatenate lanes
+# Concatenate lanes; edit this for your task
 R1=`echo *R1_001.fastq.gz`
 R2=`echo *R2_001.fastq.gz`
 
@@ -57,12 +58,14 @@ $FASTQC -T $NCPU -f fastq $OUT.1.fq
 $FASTQC -T $NCPU -f fastq $OUT.2.fq
 
 # STAR
+MEM=`echo "$SMGB" | awk '{print $1 * 1073741824}'`
+echo "limitBAMsortRAM=$MEM"
 $STAR --genomeDir $INDEX \
 --readFilesIn $OUT.1.fq $OUT.2.fq \
 --runThreadN $NCPU \
 --twopassMode Basic \
 --outSAMtype BAM SortedByCoordinate \
---limitBAMsortRAM 64000000000 \
+--limitBAMsortRAM $MEM \
 --outBAMsortingBinsN 100 \
 --quantMode TranscriptomeSAM \
 --outWigType bedGraph \
@@ -76,9 +79,9 @@ mv Log.final.out $OUT.Log.final.out
 $SAMTOOLS index $OUT.bam
 $SAMTOOLS idxstats $OUT.bam | sort -V > $OUT.idxstats
 
-# RSEM
+# RSEM take 'Aligned.toTranscriptome.out' 
 $RSEM --paired-end -p $NCPU --alignments --strandedness reverse --no-bam-output \
-   Aligned.toTranscriptome.out.bam $RSEM_INDEX $OUT
+   Aligned.toTranscriptome.out.bam $RSEM_INDEX $OUT 
 
 # featureCounts -s 2
 $FEATCOUNT -T $NCPU -p -s 2 --largestOverlap -a $GTF -o $OUT.counts $OUT.bam
@@ -95,6 +98,7 @@ $BIGWIG Signal.UniqueMultiple.str1.out.bg $CHROM $OUT.multiple.bw
 
 # keep for Salmon?
 rm Aligned.toTranscriptome.out.bam
+
 rm $OUT.1.fq $OUT.2.fq
 rm Signal.Unique.str1.out.bg
 rm Signal.UniqueMultiple.str1.out.bg
