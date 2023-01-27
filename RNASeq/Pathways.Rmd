@@ -1,0 +1,173 @@
+---
+title: "Pathway analysis for 16216R"
+output: html_document
+date: '`r gsub("  ", " ", format(Sys.time(), "%B %e, %Y"))`'
+---
+
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, comment="# ", collapse=TRUE)
+```
+
+
+There are a number of options for pathway analysis and most can be divided into
+one of two groups based on the input dataset.  Gene set enrichment methods like
+Broad's [GSEA] require **all** expressed genes sorted by fold change and
+calculate a running sum statistic to find pathways that are enriched with
+either up- or down-regulated genes.  Over representation methods require a
+smaller subset of significant genes and use a Fisher's test to identify significant pathways.
+
+
+### GSEA
+
+The [fgsea] package (fast gene set enrichment analysis) is similar to Broad's
+GSEA and finds pathways that are enriched with either up- or down-regulated
+human genes.  Get the result tables with human homologs from `DESeq.Rmd`,
+load the KEGG pathways from [MSigDB] and  run `fgsea` using a 10% FDR.
+
+
+```{r kegg}
+library(hciRdata)
+set.seed(77)
+k1 <- fgsea_all(res, msig_pathways$KEGG)
+```
+
+Print the top pathways from translocation vs. Rosa26 and check the GSEA [user guide] for details about the statistics.
+
+```{r top6, echo=-1}
+options(width=110)
+group_by(k1[[1]][, -8], enriched) %>% top_n(4, abs(NES)) %>% ungroup()
+```
+
+
+
+Get the fold change vector and create an enrichment plot for ECM Receptor Interaction.
+
+```{r enrich1, message=FALSE, fig.height=4}
+library(fgsea)
+fc <- write_gsea_rnk(res, write=FALSE)
+head(fc[[1]])
+plotEnrichment(msig_pathways$KEGG[["ECM Receptor Interaction"]],  fc[[1]]) +
+  ggplot2::labs(title="ECM Receptor Interaction")
+```
+
+Compare to Oxidative Phosphorylation with mostly up-regulated genes.
+
+```{r enrich2, fig.height=4}
+plotEnrichment(msig_pathways$KEGG[["Oxidative Phosphorylation"]],  fc[[1]]) +
+  ggplot2::labs(title="Oxidative Phosphorylation")
+```
+
+
+Plot NES scores from significant pathways in two or more contrasts.
+
+```{r plotfgsea, fig.height=6.5, fig.width=3.5}
+plot_fgsea(k1, fontsize_row=6, sets=2)
+```
+
+Significant pathways in a single contrast.
+
+```{r plotfgsea2, fig.height=4.5, fig.width=3.75}
+plot_fgsea(k1, fontsize_row=6, sets=1)
+```
+
+<br>
+
+Run FGSEA on other gene sets in the [MSigDB] using a 10% FDR.
+
+```{r all_msig}
+# Reactome
+r1 <- fgsea_all(res, msig_pathways$REACTOME)
+# Gene ontology, MF molecular function or BP or CC
+mf <- fgsea_all(res, msig_go$MF)
+```
+
+
+Combine the results and save the enriched pathways to an Excel File.
+
+```{r sig}
+names(k1) <- paste("KEGG", names(k1))
+names(r1) <- paste("REACTOME", names(r1))
+names(mf) <- paste("GO_MF", names(mf))
+sig <- c(k1, r1, mf)
+```
+
+```{r write, eval=FALSE}
+openxlsx::write.xlsx(sig, file = "Pathways_GSEA.xlsx")
+```
+
+
+### Over representation methods
+
+
+There are many online tools that accept a list of significant genes as
+input and return enriched sets. [Enrichr] compares gene names to hundreds of gene
+set libraries to find over-represented pathways, transcription factors, gene
+ontology terms, diseases, cell types, knockouts and many others.  To get a list
+of genes, just sort the DESeq results in the Excel file by adjusted p-value and
+copy and paste the gene names into the search box.
+
+Another option is to run the Fisher's exact test in R.  The `fisher_all`  function
+will  create a contigency table with the number of significant and non-significant genes
+in each KEGG pathway and run `fisher.test` (p-values are not adjusted for multiple testing).
+
+
+```{r fisher1}
+k2 <- fisher_all(res, msig_pathways$KEGG, min_set=5)
+```
+
+
+The columns include the total number of genes in the pathway, all expressed genes from RNA-Seq
+in the pathway and total signficant genes (up or down-regulated).
+
+```{r fisher2, echo=-1}
+options(width=110)
+k2[[1]]
+```
+
+
+Run the Fisher's test on REACTOME pathways.
+
+
+```{r react2}
+r2 <- fisher_all(res, msig_pathways$REACTOME, min_set=5)
+```
+
+
+Combine the results and save the enriched pathways to an Excel File.
+
+```{r sig2}
+names(k2) <- paste("KEGG", names(k2))
+names(r2) <- paste("REACTOME", names(r2))
+sig2 <- c(k2, r2)
+```
+
+```{r write2, eval=FALSE}
+openxlsx::write.xlsx(sig2, file = "Pathways_Fisher.xlsx")
+```
+
+
+<br>
+
+ Finally, we recently acquired a site-wide license to Illumina's BaseSpace
+[Correlation Engine], so anyone with a `*utah.edu` email can set up an account
+at https://hci.ussc.informatics.illumina.com/.  The Correlation Engine uses a
+Rank-Based Directional  Enrichment Algorithm that combines aspects of each
+method above (ranked lists and Fisher's test). Once you are registered, please
+send me an email and I will add you to your lab's group page so you can view
+the results (and we can also meet to go through the results together).  The
+Correlation Engine can be used to compare  your significant genes to  many
+different pathway and gene sets plus 22,000 curated studies.   You can also
+compare multiple lists of significant genes using the meta-anlaysis feature.
+
+
+
+
+<br>
+
+[Correlation Engine]: https://hci.ussc.informatics.illumina.com/
+[Enrichr]: http://amp.pharm.mssm.edu/Enrichr/
+[user guide]: http://software.broadinstitute.org/gsea/doc/GSEAUserGuideFrame.html
+[GSEA]: http://software.broadinstitute.org/gsea/index.jsp
+[fgsea]: https://bioconductor.org/packages/release/bioc/html/fgsea.html
+[MSigDB]: http://software.broadinstitute.org/gsea/msigdb/collections.jsp
