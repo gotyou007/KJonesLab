@@ -1,0 +1,7 @@
+sratools=/Users/KStraessler/tools/sratoolkit.3.0.2-mac64/bin
+# edit SRRnumber
+prefetch SRRnumber
+echo show me downloaded sra `ls ~/ncbi/public/sra/`
+fastq-dump --outdir fastq --gzip --skip-technical  --readids --read-filter pass --dumpbase --split-3 --clip ~/ncbi/public/sra/SRRnumber.sra
+echo show me downloaded fq `ls ~/ncbi/public/sra/fastq`
+#if you have multiple sra projects to download, pls refer to 'fastq_download.py'
