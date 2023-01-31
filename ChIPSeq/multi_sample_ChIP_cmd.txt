@@ -1,0 +1,48 @@
+#e timothy.parnell@hci.utah.edu
+#c redwood
+#t 12
+
+# script to run the multi-sample ChIP pipeline 
+
+module load multirepchipseq
+
+# Running an independent replicate peak call 
+# final peaks are simply a merge of the independent calls
+
+echo "===================== 20047R Independent Peak call ====================="
+multirep_macs2_pipeline.pl \
+--chip POL2-1.bam,POL2-2.bam,POL2-3.bam \
+--name Pol2 \
+--chip TFEB-1.bam,TFEB-2.bam,TFEB-3.bam \
+--name TFEB \
+--control INPUT-1.bam,INPUT-2.bam,INPUT-3.bam \
+--independent \
+--dir ChIPSeq \
+--out all \
+--pe \
+--nodedup \
+--size 300 \
+--cutoff 2 \
+--peaksize 300 \
+--peakgap 100 \
+--chrskip 'chrM|chrUn|alt|random' \
+--cpu 8 \
+--job 4 
+
+
+# Rerun the peak calling pipeline for a joint call on the mean replicate signal
+
+echo
+echo "===================== 20047R Joint Peak call ====================="
+recall_peaks.pl \
+--dir ChIPSeq \
+--in all \
+--out joint \
+--cutoff 2 \
+--peaksize 300 \
+--peakgap 100 
+
+
+
+
+
