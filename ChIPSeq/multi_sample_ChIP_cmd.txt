@@ -1,4 +1,4 @@
-#e timothy.parnell@hci.utah.edu
+#e li.li@hci.utah.edu
 #c redwood
 #t 12
 
