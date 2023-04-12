@@ -1,0 +1,50 @@
+#e li.li@hci.utah.edu
+#c kingspeak
+module load macs2
+
+macs2 callpeak --bdg -q 0.001 -t 20690X1.bam \
+	-c 20690X4.bam \
+ 	-f BAMPE \
+	-n fusion \
+	--outdir macs2
+sort -nk 5,5 -r macs2/fusion_peaks.narrowPeak |head
+
+~/bioinfo_tools/bedGraphToBigWig fusion_treat_pileup.bdg ~/bioinfo_tools/hg38.chrom.sizes fusion_treat_pileup.bw
+
+macs2 callpeak --bdg -q 0.001 -t 20690X2.bam \
+	-c 20690X4.bam \
+ 	-f BAMPE \
+	-n GLTSCR1 \
+	--outdir macs2
+
+macs2 callpeak --bdg -q 0.001 -t 20690X3.bam \
+	-c 20690X4.bam \
+ 	-f BAM \
+	-n BRD9 \
+	--outdir macs2
+
+#########rep2################
+macs2 callpeak --bdg -q 0.001 -t A7975/Alignments/20690X6.bam \
+	-c A7975/Alignments/20690X9.bam \
+ 	-f BAM \
+	-n fusion2 \
+	--outdir macs2
+
+macs2 callpeak --bdg -q 0.001 -t A7975/Alignments/20690X7.bam \
+	-c A7975/Alignments/20690X9.bam \
+ 	-f BAM \
+	-n GLTSCR1_2 \
+	--outdir macs2
+
+macs2 callpeak --bdg -q 0.001 -t A7975/Alignments/20690X8.bam \
+	-c A7975/Alignments/20690X9.bam \
+ 	-f BAM \
+	-n BRD9_2 \
+	--outdir macs2
+
+macs2 callpeak --bdg -q 0.001 -t A7975/Alignments/20690X5.bam \
+	-c A7975/Alignments/20690X9.bam \
+ 	-f BAM \
+	-n BAF155 \
+	--outdir macs2
+
