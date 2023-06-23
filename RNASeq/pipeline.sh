@@ -96,6 +96,10 @@ I=$OUT.bam  O=$OUT.rna_metrics
 $BIGWIG Signal.Unique.str1.out.bg $CHROM $OUT.unique.bw
 $BIGWIG Signal.UniqueMultiple.str1.out.bg $CHROM $OUT.multiple.bw
 
+LC_COLLATE=C sort -k1,1 -k2,2n Signal.Unique.str1.out.bg > uniq.bg
+LC_COLLATE=C sort -k1,1 -k2,2n Signal.UniqueMultiple.str1.out.bg > mult.bg
+
+
 # keep for Salmon?
 rm Aligned.toTranscriptome.out.bam
 
