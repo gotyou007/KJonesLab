@@ -185,7 +185,20 @@ x <- top_counts(res[[1]], rld, top=2000, col_name="name")
 nrow(x)
 plot_genes(x, "trt", scale="row", show_rownames=FALSE, annotation_names_col = FALSE)
 ```
-
+```{r gene_heatmap1a, fig.width=6, fig.height=6}
+library(tibble)
+#for selected genes only or select samples only
+selected_genes <- res[[2]][res[[2]]$id %in% common_diff$id, c(1,2)]
+selected_genes <- drop_na(selected_genes)
+#get table from rld and select genes we want to plot
+x1 <- as.tibble(assay(rld)[selected_genes$id,])
+#id is for row names when x is converted to matrix by as_matrix()
+x1$id <- selected_genes$id
+x1 <- x1[,c(17, 1:16)]
+colnames(x1)[2:17] <- rld$name
+#add colData attribute for x
+attr(x1, "colData") <- attr(x, "colData")
+```
 
 Optionally, drop columns like muscle that are not included in the contrast (not run).
 
